@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bunny Catch Game</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    #counter {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.85);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 18px;
+      z-index: 2;
+    }
+    #message {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+    }
+    #messageBox {
+      background: #fff;
+      padding: 30px;
+      border-radius: 20px;
+      max-width: 520px;
+      font-size: 20px;
+      line-height: 1.4;
+      text-align: center;
+      animation: pop 0.6s ease-out;
+    }
+    @keyframes pop {
+      from { transform: scale(0.7); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="counter">Bunnies caught: 0 / 15</div>
+
+  <div id="message">
+    <div id="messageBox">
+      <h2>You caught them all! ⭐</h2>
+      <p><strong>I'm sorry that I didn't listen to you last night.</strong></p>
+      <p>You were right when you said I should've set an alarm on my phone in the living room and left it there so I would hear it.</p>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const counter = document.getElementById('counter');
+    const message = document.getElementById('message');
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    let caught = 0;
+    const target = 15;
+    const bunnyCount = 7;
+
+    const groundY = () => canvas.height * 0.75;
+
+    /* Clouds */
+    const clouds = Array.from({ length: 5 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * 200 + 40,
+      speed: Math.random() * 0.4 + 0.2
+    }));
+
+    class Bunny {
+      constructor() {
+        this.radius = 22;
+        this.x = Math.random() * canvas.width;
+        this.ground = groundY();
+        this.y = this.ground;
+        this.vx = (Math.random() * 2 + 2) * (Math.random() < 0.5 ? -1 : 1);
+        this.hopTime = Math.random() * Math.PI * 2;
+        this.hopHeight = Math.random() * 140 + 100;
+        this.clickRadius = this.radius + 10; // larger clickable area
+      }
+
+      update() {
+        this.x += this.vx;
+        this.hopTime += 0.06;
+        this.y = this.ground - Math.abs(Math.sin(this.hopTime)) * this.hopHeight;
+
+        if (this.x < this.radius || this.x > canvas.width - this.radius) {
+          this.vx *= -1;
+        }
+      }
+
+      draw() {
+        // body
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        ctx.strokeStyle = '#333';
+        ctx.stroke();
+
+        // ears
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#333';
+        ctx.beginPath();
+        ctx.ellipse(this.x - 8, this.y - 30, 5, 15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.ellipse(this.x + 8, this.y - 30, 5, 15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // eyes
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(this.x - 5, this.y - 2, 2, 0, Math.PI * 2);
+        ctx.arc(this.x + 5, this.y - 2, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // nose
+        ctx.fillStyle = '#ff9999';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y + 4, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      isClicked(mx, my) {
+        const dx = mx - this.x;
+        const dy = my - this.y;
+        return Math.sqrt(dx * dx + dy * dy) < this.clickRadius;
+      }
+    }
+
+    let bunnies = [];
+    for (let i = 0; i < bunnyCount; i++) bunnies.push(new Bunny());
+
+    canvas.addEventListener('click', e => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      for (let i = bunnies.length - 1; i >= 0; i--) {
+        if (bunnies[i].isClicked(mx, my)) {
+          bunnies.splice(i, 1);
+          bunnies.push(new Bunny());
+          caught++;
+          counter.textContent = `Bunnies caught: ${caught} / ${target}`;
+          if (caught >= target) message.style.display = 'flex';
+          break;
+        }
+      }
+    });
+
+    function drawCloud(c) {
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 25, 0, Math.PI * 2);
+      ctx.arc(c.x + 30, c.y + 10, 30, 0, Math.PI * 2);
+      ctx.arc(c.x + 60, c.y, 25, 0, Math.PI * 2);
+      ctx.fill();
+
+      c.x += c.speed;
+      if (c.x > canvas.width + 80) c.x = -80;
+    }
+
+    function drawBackground() {
+      // sky
+      const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      sky.addColorStop(0, '#87ceeb');
+      sky.addColorStop(1, '#eaf9ff');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // sun
+      ctx.beginPath();
+      ctx.arc(canvas.width - 100, 100, 45, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffd93b';
+      ctx.fill();
+
+      clouds.forEach(drawCloud);
+
+      // grass
+      ctx.fillStyle = '#6ab04c';
+      ctx.fillRect(0, groundY(), canvas.width, canvas.height);
+    }
+
+    function drawStars() {
+      for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2 + Math.cos(i) * 80, canvas.height / 2 - 120 + Math.sin(i) * 40, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function loop() {
+      drawBackground();
+
+      if (caught >= target) {
+        drawStars();
+        return;
+      }
+
+      bunnies.forEach(b => {
+        b.update();
+        b.draw();
+      });
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
